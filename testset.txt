@@ -1,0 +1,5 @@
+sein : breast
+tumeur : tumor
+tamoxifène : tamoxifen
+chimiothérapie : chemotherapy
+curage : dissection

@@ -1,3 +1,4 @@
 rm -i *~
+rm RES
 rm TRANSFERED/*
 rm *.pyc

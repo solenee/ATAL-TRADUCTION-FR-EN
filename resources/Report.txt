@@ -1,6 +1,5 @@
 TODO
 - Implementation/Import of functions :
-* cosine
 * MAP
 * Precision given a TOP
 - Parse xml file to load the test set (entries to translate)
