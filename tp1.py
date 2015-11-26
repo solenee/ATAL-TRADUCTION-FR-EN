@@ -6,11 +6,15 @@
 # and a bilingual dictionary
 #-------------------------------
 
-import re, sys, os, nltk
+import re, sys, os #, nltk
 import types
+import time
 import cognates
-from numpy import sqrt
-
+import getTestSet as test
+import codecs
+from math import sqrt, log, log10
+from collections import Counter
+from re import match
 
 #-------------------------------------------------------------------------
 # TYPES
@@ -48,6 +52,11 @@ TARGET_LANGUAGE="EN"
 JACCARD="JACCARD"
 COSINE="COSINE"
 
+DIRECT="DIRECT METHOD"
+CHIAO="DISTRIBUTIONAL SYMMETRY"
+GOOD_DICTIONARY="GOOD DICTIONARY"
+CHIAO_GOOD_DICTIONARY="CHIAO + GOOD DICTIONARY"
+
 #interestingPOS = {}
 #interestingPOS["noun"]["fr"] = ["S", "NP"]
 #interestingPOS["noun"]["en"] = ["S", "NP"]
@@ -64,13 +73,39 @@ COSINE="COSINE"
 #-------------------------------------------------------------------------
 # PARAMETERS
 #-------------------------------------------------------------------------
-SIMILARITY_FUNCTION=COSINE
+MIN_WORD_LENGTH=3
+SIMILARITY_FUNCTION=JACCARD #COSINE #
+METHOD=CHIAO
+STRATEGY_DICO="TO BE DEFINED"
+TOLERANCE_RATE=1.5 #When there is several candidates with the same score, we accept
+# to process max. TOP*TOLERANCE_RATE candidates
+
+#-------------------------------------------------------------------------
+# ATTRIBUTES
+#-------------------------------------------------------------------------
+#N : noun, V : verb, ADJ : adjective, ADV : adverb, NADJ : N|ADJ, VADJ
+TARGET_POS = {}
+SOURCE_POS = {}
+DICO = {}
+DICO_INV = {}
+TARGET_SPACE = set()
+SOURCE_SPACE = set()
+PIVOT_WORDS = set()
+TARGET_TRANSFERRED_VECTORS = {}
+SOURCE_TRANSFERRED_VECTORS = {}
+TARGET_NETWORK = {}
+SOURCE_NETWORK = {}
+
 #-------------------------------------------------------------------------
 # METHODS
 #-------------------------------------------------------------------------
 
 # word == Token
 # corpus == list of Token
+
+def isWord(w) :
+  """ Check if a String matches word pattern : [a-zA-Z]([a-zA-Z0-9'-])* """
+  return re.match('[a-zA-Zàâéèêëïöûü]([a-zA-Z0-9àâéèêëïöûü\'_-])*', w)
 
 # For French : 
 # CoveredText/POS:Gender:Number/Lemma
@@ -97,12 +132,13 @@ def iniCorpusFR(filename) :
         if len(tmp) > 1 :
           tmp[1] = tmp[1].split(":")[0]
           tmp[-1]= tmp[-1].split(":")[0]
-          if (tmp[0] not in stopwords) and (tmp[-1] not in stopwords) and (tmp[1] in ["SBC", "ADJ", "ADJ2PAR", "ADJ1PAR", "ADV", "VCJ", "VNCNT", "VNCFF", "VPAR", "ECJ"]) :
+          if (len(tmp[0]) >= MIN_WORD_LENGTH) and (isWord(tmp[0])) and (isWord(tmp[1])) and (tmp[0] not in stopwords) and (tmp[-1] not in stopwords) and (tmp[1] in ["SBC", "ADJ", "ADJ2PAR", "ADJ1PAR", "ADV", "VCJ", "VNCNT", "VNCFF", "VPAR"]) :
 #(tmp[1] not in ["DT", "IN", "CD", "PREP", "WDT"]) :
             #print ">" + tokens[i]
             t = Token(tmp[0], tmp[1], tmp[-1], sentenceID)
             #print tmp[0] + " " +tags[0]
             corpus.append(t)
+            SOURCE_SPACE.add(str(t))
           #else : print tmp[0]+" "+tmp[1]
   return corpus
 
@@ -126,19 +162,21 @@ def iniCorpusEN(filename) :
         tmp = tokens[i].split("/")
         # Filter stopwords and ponctuation
         if len(tmp) > 1 :
-          if (tmp[0] not in stopwords) and (tmp[-2] not in stopwords) and (tmp[1] in ["NN", "NNS", "NNP", "NNPS", "NN|JJ", "JJ", "JJR", "RB", "RBS", "VB", "VBZ", "VBN", "VBD", "VBG", "VBP",]) :
+          if (len(tmp[0]) >= MIN_WORD_LENGTH) and (isWord(tmp[0])) and (isWord(tmp[1])) and (tmp[0] not in stopwords) and (tmp[-2] not in stopwords) and (tmp[1] in ["NN", "NNS", "NNP", "NNPS", "NN|JJ", "JJ", "JJR", "VB", "VBZ", "VBN", "VBD", "VBG", "VBP",]) :
 #(tmp[1] not in ["DT", "IN", "CC", "PRP", "TO"]) :
-            #print ">" + tokens[i] 
+            #print ">" + tokens[i]
             t = Token(tmp[0], tmp[1], tmp[-2], sentenceID)
             #print tmp[0] + " " +tmp[1]
             corpus.append(t)
+            TARGET_SPACE.add(str(t))
           #else : print tmp[0]+" "+tmp[1]
   return corpus
 
-def getBilingualDictionary(filename) :
+def getBilingualDictionary(filename) : #, dicoS_T, dicoT_S) :
   """ Load the bilingual dictionary """
   # TODO Load POS tags
-  dico = {}
+  dicoS_T = DICO
+  dicoT_S = DICO_INV
   with open(filename, "r") as f:
     for line in f: 
       if line == " " or line.startswith("-") : continue
@@ -147,11 +185,13 @@ def getBilingualDictionary(filename) :
       if len(tmp) > 5 :
         if ( tmp[2] == "TR-"+SOURCE_LANGUAGE+"-"+TARGET_LANGUAGE ) :
             #print ">" + tmp[0] 
-            if (tmp[0] not in dico) : dico[tmp[0]] = []
-            dico[tmp[0]].append(tmp[3])
+            if (tmp[0] not in dicoS_T) : dicoS_T[tmp[0]] = []
+            dicoS_T[tmp[0]].append(tmp[3])
+            if (tmp[3] not in dicoT_S) : dicoT_S[tmp[3]] = []
+            dicoT_S[tmp[3]].append(tmp[0])
             #print tmp[0] + " " +tmp[3]
-  return dico
-
+    #print dicoS_T
+    #print dicoT_S
 
 
 def inc(network, wordInFocus, wordInWindow) :
@@ -207,15 +247,80 @@ def computeContextVectors(corpus, windowSize) : #, POS_to_keep) :
           inc( network, str(word), str(corpus[j]) )
   return network
 
-def transfer(word, contextVector, bilingualDico) : 
+def sum_cooc(context_i):
+  def add(x,y): return x+y
+  return reduce(add, context_i.values(), 0)
+
+def normalizeLO1(vectors) :
+  N = float( sum([sum_cooc(vectors[i]) for i in vectors]) ) / 2 #N=a+b+c+d
+  n_vectors = {}
+  for i in vectors :
+    n_vectors[i] = {}
+    for j in vectors[i] :
+      # cooc(i,j)
+      a = float(vectors[i][j])
+      # cooc(i, -j)
+      b = float( sum([vectors[i][k] for k in vectors[i] if not (k == j)]) )
+      # cooc(-i, j)
+      c = float( sum([vectors[j][k] for k in vectors[j] if not (k == i)]) )
+      # cooc(-i, -j)
+      d = N - (a+b+c)
+      n_vectors[i][j] = log ( ( (a+0.5)*(d+0.5) ) / ( (b+0.5)*(c+0.5) ) )
+  vectors = n_vectors
+      
+def normalizeLO(vectors) :
+  n_vectors = {}
+  l_keys = vectors.keys()
+  def indice(key) : return l_keys.index(key)
+  l_sum_cooc = [sum_cooc(vectors[i]) for i in l_keys]
+  N = float( sum(l_sum_cooc) ) / 2 #N=a+b+c+d
+  for i in vectors :
+    n_vectors[i] = {}
+    for j in vectors[i] :
+      # cooc(i,j)
+      a = float(vectors[i][j])
+      # cooc(i, -j)
+      b = float( l_sum_cooc[indice(i)] - vectors[i][j] )
+      # cooc(-i, j)
+      c = float( l_sum_cooc[indice(j)] - vectors[j].get(i, 0) ) #BIZZARE : Pourquoi vectors[j][i] n'existe pas tjrs??
+      #print str(c)
+      # cooc(-i, -j)
+      d = N - (a+b+c)
+      n_vectors[i][j] = log ( ( (a+0.5)*(d+0.5) ) / ( (b+0.5)*(c+0.5) ) )
+  vectors = n_vectors
+
+  
+def normalizeTFIDF(vectors):
+  """ Normalize context vectors using the tf*idf measure described in Chiao """
+  max_cooc = [reduce(max, vectors[i].values(), 0) for i in vectors]
+  MAX_OCC = float(max(max_cooc))
+  cooc_i = [sum_cooc(vectors[i]) for i in vectors]
+  for i_index, i in enumerate(vectors) :
+    idf = 1 + log(MAX_OCC/cooc_i[i_index])
+    for j in vectors[i] :
+      vectors[i][j] = ( float(vectors[i][j])/MAX_OCC ) * idf
+
+def isPivot(word, dictionary, targetFreqCounts) :
+  def isInTragetSpace(w) : return targetFreqCounts[w] > 0
+  return (word in dictionary) and reduce(lambda a,b : a or b, filter(isInTragetSpace, dictionary[word]), False)
+
+def transfer(word, contextVector, bilingualDico, targetFreqCounts) : 
   transferedVector = {}
   for word2 in contextVector :
-      if word2 in bilingualDico : 
-        candidates = bilingualDico[word2]
-        best_candidate = candidates[0] # TODO Improve translation choice
-        transferedVector[best_candidate] = contextVector[word2]
+    if word2 in bilingualDico : 
+      translations = [(x, targetFreqCounts[x]) for x in bilingualDico[word2] if targetFreqCounts[x] > 0]
+      if len(translations) > 0 :
+        PIVOT_WORDS.add(word2)
+        assoc = dict(translations)
+        totalCounts = sum(assoc.values())
+        m = max([targetFreqCounts[x] for x in bilingualDico[word2] if targetFreqCounts[x] > 0])
+        for t in assoc :
+          #Most_freq_only
+          if assoc[t] == m : transferedVector[t] = contextVector[word2]
+          #all_trad_weighted_by_frequency :          transferedVector[t] = contextVector[word2] * ( float(assoc[t]) / totalCounts )
+          #all_trad_same_weight :          transferedVector[t] = contextVector[word2]
   #saveVector(word, contextVector, "CONTEXT")
-  saveVector(word, transferedVector, "TRANSFERED")
+  #saveVector(word, transferedVector, "TRANSFERED")
   return transferedVector
 
 def saveTransferedVector(word, vector) : 
@@ -251,22 +356,468 @@ def getTransferedVector(word) :
 def getTestSet(filename) :
   testset = {}
   with open(filename, "r") as f:
-    for line in f: 
+    for line in f:
+      #line = line.decode('utf-8')
       if line == " " : continue
       tmp = line.split(" : ")
       if len(tmp) == 2 :
-        if tmp[0] not in testset : testset[tmp[0]] = []
-        testset[tmp[0]].append(tmp[1])
-        print tmp[0]+":"+tmp[1]
+        if tmp[0] not in testset : testset[str(tmp[0])] = []
+        testset[str(tmp[0])].append(tmp[1].split("\n")[0])
+        #print tmp[0]+":"+tmp[1]
   return testset
 
-def findCandidateTranslations(word, transferedVector, targetNetwork, nb, similarityFunction) :
-  """ nb : number of candidates to find """
-  print"====="
+def getRank(candidates, word, isScore=True) :
+  rank = 0
+  s_index = 0
+  stop = False
+  scores = sorted(candidates.keys(), reverse=isScore)
+  while not stop :
+    if word in candidates[scores[s_index]] :
+      rank = rank + 1
+      stop = True
+    else : rank = rank + len(candidates[scores[s_index]])
+    s_index = s_index + 1
+    if s_index == len(scores) :
+      rank = float('inf')
+      stop = True
+  return rank
+
+def arithmeticMean(x, y) :
+  if x == float('inf') : return 2*y
+  if y == float('inf') : return 2*x
+  return float(x+y)/2
+
+def geometricMean(x, y) :
+  if x == float('inf') : return 2*y
+  if y == float('inf') : return 2*x
+  return sqrt(x*y)
+
+def harmonicMean(x, y) :
+  if x == float('inf') : return 2*y
+  if y == float('inf') : return 2*x
+  return float(2*x*y) / (x+y)
+
+def findCandidateTranslationsChiaoReverse(word, sourceVector, transferredTargetNetwork, nb, similarityFunction, f_transferSource, f_filter_candidates=None) :
+  #print "==========="
+  print word
+  #list of the nb best scores found
+  candidates = {}
+  scores = []
+  if f_filter_candidates is None :
+    print "f_filter_candidates is None"
+    candidates = findCandidateScores(word, sourceVector, transferredTargetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  else :
+    candidatesKeys = DICO.get(word, [])
+    if len(candidatesKeys) == 0 :
+      candidatesKeys = [k for k in transferredTargetNetwork.keys() if (len(DICO_INV.get(k, []))== 0)]
+    filteredTargetNetwork = {k: v for k, v in transferredTargetNetwork.iteritems() if k in candidatesKeys}
+    candidates = findCandidateScores(word, sourceVector, filteredTargetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)  
+
+  res1 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores)) :
+    if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      res1.append(w)
+      if len(res1) >= nb*TOLERANCE_RATE :
+        print "----early exit"
+        break
+  #print res1 #
+  
+  d_rank = {}
+
+  transferredSourceVector = f_transferSource(word)
+  for cand in res1 :
+    if not (f_filter_candidates is None) :
+      #print "f_filter_candidates is not None"
+      if cand not in transferredTargetNetwork :
+        print str(cand)+" rejected because not in target corpus"
+        continue
+      #else : print str(cand)
+    #else : print "f_filter_candidates is not None"
+    cand_vector = TARGET_NETWORK[cand]
+    cand_reverse = findCandidateScores(cand, cand_vector, SOURCE_TRANSFERRED_VECTORS, nb, similarityFunction)
+    cand_rank = harmonicMean(getRank(candidates, cand), getRank(cand_reverse, word))
+    if cand_rank not in d_rank : d_rank[cand_rank] = []
+    d_rank[cand_rank].append(cand)
+
+  result = []
+  ranks = sorted(d_rank.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranks)) :
+    for w in d_rank[ranks[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+  #print "---"
+  #print result
+  return result
+
+def findCandidateTranslationsMixMean(word, nb, similarityFunction, f_filter_candidates=None) :
+  #list of the nb best scores found
+  candidates = {}
+  scores = []
+  if f_filter_candidates is None :
+    candidates = findCandidateScoresMix(word, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  else :
+    candidatesKeys = DICO.get(word, [])
+    if len(candidatesKeys) == 0 :
+      candidatesKeys = [k for k in targetNetwork.keys() if (len(DICO_INV.get(k, []))== 0)]
+    filteredTargetNetwork = {k: v for k, v in targetNetwork.iteritems() if k in candidatesKeys}
+    candidates = findCandidateScoresMix(word, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  #print "========="
+  #print scores
+
+  result = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+# Give an ordered list of the translation candidates
+  for i in range(len(scores)) :
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+
+ #  i = 0
+#  while (i<TOP) and (i<len(scores)) :
+#    for w in candidates[scores[i]] : 
+#      result.append(w)
+#      print word+"> "+str(i)+" "+w
+#    i=i+len(candidates[scores[i]])
+
+  return result
+
+#---------------------------------------------
+def findCandidateTranslationsMixChiaoSeparate(word, nb, similarityFunction) :
+  print word
+
+  # Chiao in target space 
+  candidates_Trgt = findCandidateScores(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, nb, similarityFunction)
+  scores_Trgt = sorted(candidates_Trgt.keys(), reverse=True)
+  res_Trgt = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores_Trgt)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates_Trgt[scores_Trgt[i]] :
+      res_Trgt.append(w)  
+  d_rank_Trgt = {}
+  ## Re-ranking in target space
+  for cand in res_Trgt :   
+    cand_reverse_Trgt = findCandidateScores(cand, TARGET_NETWORK[cand], SOURCE_TRANSFERRED_VECTORS, nb, similarityFunction)
+    rank_Trgt = harmonicMean(getRank(candidates_Trgt, cand), getRank(cand_reverse_Trgt, word))
+    if rank_Trgt not in d_rank_Trgt : d_rank_Trgt[rank_Trgt] = []
+    d_rank_Trgt[rank_Trgt].append(cand)
+  #print res1 #
+  res1 = []
+  ranksTrgt = sorted(d_rank_Trgt.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranksTrgt)) :
+    for w in d_rank_Trgt[ranksTrgt[i]] :
+      #print w+"> "+str(s)
+      res1.append(w)
+  print res1
+
+  # Chiao in source space
+  candidates_Src = findCandidateScores(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, nb, similarityFunction)
+  scores_Src = sorted(candidates_Src.keys(), reverse=True)
+  res_Src = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores_Src)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates_Src[scores_Src[i]] :
+      res_Src.append(w)
+  #print res_Src #
+  d_rank_Src = {}
+  ## Re-ranking in source space
+  for cand in res_Src :   
+    cand_reverse_Src = findCandidateScores(cand, TARGET_TRANSFERRED_VECTORS[cand], SOURCE_NETWORK, nb, similarityFunction)
+    rank_Src = harmonicMean(getRank(candidates_Src, cand), getRank(cand_reverse_Src, word))
+    if rank_Src not in d_rank_Src : d_rank_Src[rank_Src] = []
+    d_rank_Src[rank_Src].append(cand)
+  res2 = []
+  ranksSrc = sorted(d_rank_Src.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranksSrc)) :
+    for w in d_rank_Src[ranksSrc[i]] :
+      #print w+"> "+str(s)
+      res2.append(w)
+  print res2
+
+  #Harmonic mean of both ranks 
+  d_rank = {}
+  for cand in set(res1) | set(res2) :
+    cand_rank = harmonicMean(getRank(d_rank_Src, cand, False), getRank(d_rank_Trgt, cand, False))
+    if cand_rank not in d_rank : d_rank[cand_rank] = []
+    d_rank[cand_rank].append(cand)
+  result = []
+  ranks = sorted(d_rank.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranks)) :
+    for w in d_rank[ranks[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+  print result
+  print "---"
+  return result                 
+#---------------------------------------------
+
+#---------------------------------------------
+def findCandidateTranslationsMixChiao(word, nb, similarityFunction) :
+  # Mixed direct method
+  print word
+  candidates = findCandidateScores(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, nb, similarityFunction)
+  scores = sorted(candidates.keys(), reverse=True)
+  res1 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      res1.append(w)
+      #if len(res1) >= nb*TOLERANCE_RATE :
+        #print "----early exit"
+        #break
+  #print res1 #
+  
+  candidatesReverse = findCandidateScores(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, nb, similarityFunction)
+  scoresReverse = sorted(candidatesReverse.keys(), reverse=True)
+  res2 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scoresReverse)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidatesReverse[scoresReverse[i]] :
+      #print w+"> "+str(s)
+      res2.append(w)
+      #if len(res1) >= nb*TOLERANCE_RATE :
+        #print "----early exit"
+        #break
+  #print res2 #
+
+  mixedDirectRanks = {}
+  d_rankD = {}
+  for cand in set(res1) | set(res2) :
+    cand_rank = harmonicMean(getRank(candidates, cand), getRank(candidatesReverse, cand))
+    if cand_rank not in d_rankD : d_rankD[cand_rank] = []
+    d_rankD[cand_rank].append(cand)
+    mixedDirectRanks[cand] = cand_rank
+  resultD = []
+  ranksD = sorted(d_rankD.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranksD)) :
+    for w in d_rankD[ranksD[i]] :
+      #print w+"> "+str(s)
+      resultD.append(w)
+  print resultD
+  #print "---"
+  
+
+  #Mixed reverse
+  d_rankF = {}
+  for cand in resultD :
+    cand_reverse1 = findCandidateScores(cand, TARGET_TRANSFERRED_VECTORS[cand], SOURCE_NETWORK, nb, similarityFunction)
+    cand_reverse2 = findCandidateScores(cand, TARGET_NETWORK[cand], SOURCE_TRANSFERRED_VECTORS, nb, similarityFunction)
+    #Mixed reverse rank
+    rankReverse = harmonicMean(getRank(cand_reverse1, cand), getRank(cand_reverse2, word))
+    #Final rank
+    cand_rank = harmonicMean(mixedDirectRanks[cand], rankReverse)
+    if cand_rank not in d_rankF : d_rankF[cand_rank] = []
+    d_rankF[cand_rank].append(cand)
+    
+  resultF = []
+  ranksF = sorted(d_rankF.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranksF)) :
+    for w in d_rankF[ranksF[i]] :
+      #print w+"> "+str(s)
+      resultF.append(w)
+  print resultF
+  print "---"
+
+  #Final re-ranking
+  return resultF  
+#---------------------------------------------
+def findCandidateTranslationsMixBase(word, nb, similarityFunction) :
+  #print word
+  candidates = findCandidateScores(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, nb, similarityFunction)
+  scores = sorted(candidates.keys(), reverse=True)
+  res1 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      res1.append(w)
+      #if len(res1) >= nb*TOLERANCE_RATE :
+        #print "----early exit"
+        #break
+  #print res1 #
+  
+  candidatesReverse = findCandidateScores(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, nb, similarityFunction)
+  scoresReverse = sorted(candidatesReverse.keys(), reverse=True)
+  res2 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scoresReverse)) :
+    #if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidatesReverse[scoresReverse[i]] :
+      #print w+"> "+str(s)
+      res2.append(w)
+      #if len(res1) >= nb*TOLERANCE_RATE :
+        #print "----early exit"
+        #break
+  #print res2 #
+  
+  d_rank = {}
+  for cand in set(res1) | set(res2) :
+    cand_rank = harmonicMean(getRank(candidates, cand), getRank(candidatesReverse, cand))
+    if cand_rank not in d_rank : d_rank[cand_rank] = []
+    d_rank[cand_rank].append(cand)
+  result = []
+  ranks = sorted(d_rank.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranks)) :
+    for w in d_rank[ranks[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+  #print result
+  #print "---"
+  return result                                    
+
+  
+def findCandidateTranslationsChiao(word, transferedVector, targetNetwork, nb, similarityFunction, f_transferTarget, f_filter_candidates=None) :
+  #print "==========="
+  print word
+  #list of the nb best scores found
+  candidates = {}
+  scores = []
+  if f_filter_candidates is None :
+    print "f_filter_candidates is None"
+    candidates = findCandidateScores(word, transferedVector, targetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  else :
+    candidatesKeys = DICO.get(word, [])
+    if len(candidatesKeys) == 0 :
+      candidatesKeys = [k for k in targetNetwork.keys() if (len(DICO_INV.get(k, []))== 0)]
+    filteredTargetNetwork = {k: v for k, v in targetNetwork.iteritems() if k in candidatesKeys}
+    candidates = findCandidateScores(word, transferedVector, filteredTargetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)  
+
+  res1 = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  for i in range(len(scores)) :
+    if len(res1) >= nb*TOLERANCE_RATE : break
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      res1.append(w)
+      if len(res1) >= nb*TOLERANCE_RATE :
+        print "----early exit"
+        break
+  #print res1 #
+  
+  d_rank = {}
+  
+  for cand in res1 :
+    if not (f_filter_candidates is None) :
+      #print "f_filter_candidates is not None"
+      if cand not in targetNetwork :
+        print str(cand)+" rejected because not in target corpus"
+        continue
+      #else : print str(cand)
+    #else : print "f_filter_candidates is not None"
+    if cand in TARGET_TRANSFERRED_VECTORS :
+      cand_transferedVector = TARGET_TRANSFERRED_VECTORS[cand]
+    else :
+      #print "transfer::"
+      cand_transferedVector = f_transferTarget(cand)
+      TARGET_TRANSFERRED_VECTORS[cand] = cand_transferedVector
+    cand_reverse = findCandidateScores(cand, cand_transferedVector, sourceNetwork, nb, similarityFunction)
+    cand_rank = harmonicMean(getRank(candidates, cand), getRank(cand_reverse, word))
+    if cand_rank not in d_rank : d_rank[cand_rank] = []
+    d_rank[cand_rank].append(cand)
+
+  result = []
+  ranks = sorted(d_rank.keys(), reverse=False)
+  # Give an ordered list of the translation candidates
+  for i in range(len(ranks)) :
+    for w in d_rank[ranks[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+  #print "---"
+  #print result
+  return result
+
+def findCandidateTranslations(word, transferedVector, targetNetwork, nb, similarityFunction, f_filter_candidates=None) :
+  #list of the nb best scores found
+  candidates = {}
+  scores = []
+  if f_filter_candidates is None :
+    candidates = findCandidateScores(word, transferedVector, targetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  else :
+    candidatesKeys = DICO.get(word, [])
+    if len(candidatesKeys) == 0 :
+      candidatesKeys = [k for k in targetNetwork.keys() if (len(DICO_INV.get(k, []))== 0)]
+    filteredTargetNetwork = {k: v for k, v in targetNetwork.iteritems() if k in candidatesKeys}
+    candidates = findCandidateScores(word, transferedVector, filteredTargetNetwork, nb, similarityFunction)
+    scores = sorted(candidates.keys(), reverse=True)
+  #print "========="
+  #print scores
+
+  result = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+# Give an ordered list of the translation candidates
+  for i in range(len(scores)) :
+    for w in candidates[scores[i]] :
+      #print w+"> "+str(s)
+      result.append(w)
+
+ #  i = 0
+#  while (i<TOP) and (i<len(scores)) :
+#    for w in candidates[scores[i]] : 
+#      result.append(w)
+#      print word+"> "+str(i)+" "+w
+#    i=i+len(candidates[scores[i]])
+
+  return result
+  
+def findCandidateScoresMix(word, nb, similarityFunction) :
+  """ nb : number of candidates scores to find """
+  #print"====="
   TOP = nb
   scores = [] #list<Double> ; invariant : len(scores) <= TOP
   candidates = {} #Map< Double, list<String> >
   result = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  rank_results = [] #Concatenation of couple - rank
+  current_min = 10000 #TODO initialize with max double
+  for c in TARGET_NETWORK :
+    score_c = arithmeticMean(similarity(SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK[c], similarityFunction), similarity(SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS[c], similarityFunction))
+    if len(scores) < TOP :
+      # add candidate
+      #print "ADDING ("+c+", "+str(score_c)+")"
+      if score_c not in candidates : 
+        scores.append(score_c)
+        candidates[score_c] = []
+      # score_c is already in scores and in candidates' keyset
+      candidates[score_c].append(c)
+      # update current_min
+      if current_min > score_c : current_min = score_c
+    else :
+      if score_c > current_min :
+        # replace by the candidate c
+        # pre : current_min is in candidates as key and in scores  
+        scores.remove(current_min)
+        del candidates[current_min]
+        # add candidate
+        #print "ADDING ("+c+", "+str(score_c)+")"
+        if score_c not in candidates : 
+          scores.append(score_c)
+          candidates[score_c] = []
+        #else score_c is already in scores and in candidates' keyset
+        candidates[score_c].append(c)
+        # update current_min
+        current_min = min(scores)
+  # rank the results
+  return candidates
+
+def findCandidateScores(word, transferedVector, targetNetwork, nb, similarityFunction) :
+  """ nb : number of candidates scores to find """
+  #print"====="
+  TOP = nb
+  scores = [] #list<Double> ; invariant : len(scores) <= TOP
+  candidates = {} #Map< Double, list<String> >
+  result = [] #Concatenation of Strings from candidates, ordered by their rank; len(translations) <= TOP
+  rank_results = [] #Concatenation of couple - rank
   current_min = 10000 #TODO initialize with max double
   for c in targetNetwork :
     score_c = similarity(transferedVector, targetNetwork[c], similarityFunction)
@@ -296,20 +847,7 @@ def findCandidateTranslations(word, transferedVector, targetNetwork, nb, similar
         # update current_min
         current_min = min(scores)
   # rank the results
-  scores.sort()
-
-  print "len(scores)="+str(len(scores))+"\t TOP="+str(TOP)
-  for s in scores :
-    for w in candidates[s] : 
-      print w+"> "+str(s)
-      result.append(w)
-#  i = 0
-#  while (i<TOP) and (i<len(scores)) :
-#    for w in candidates[scores[i]] : 
-#      result.append(w)
-#      print word+"> "+str(i)+" "+w
-#    i=i+len(candidates[scores[i]])
-  return result
+  return candidates
 
 def similarity(x, y, choice) :
   """ Cosine similarity : sigma_XiYi/ (sqrt_sigma_Xi2 * sqrt_sigma_Yi2) """
@@ -330,12 +868,157 @@ def similarity(x, y, choice) :
   
   if choice == COSINE : result = sigma_XiYi / ( sqrt(sigma_Xi2) * sqrt(sigma_Yi2) )
   if choice == JACCARD : result = sigma_XiYi / ( sigma_Xi2 + sigma_Yi2 - sigma_XiYi )
+  else : result = 0.5 * ((sigma_XiYi / ( sqrt(sigma_Xi2) * sqrt(sigma_Yi2) )) + (sigma_XiYi / ( sigma_Xi2 + sigma_Yi2 - sigma_XiYi )))
   return result
-  
+
+def makeTest(top_list, testset, transferedNetwork, targetNetwork, f_transferTarget) :
+  candidates = {} #Map< String, List<String> >
+  unknownSourceWords = set()
+  for word in testset :
+    #print ">>Candidates for '"+ word+"'"
+    if word not in transferedNetwork :
+      print word+" not in source corpus"
+      unknownSourceWords.add(word)
+      candidates[word] = []
+    else :
+      transferedVector = transferedNetwork[word] #getTransferedVector(word)
+      #Base
+      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 1 : Chiao      candidates[word] = findCandidateTranslationsChiao(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, f_transferTarget)
+      #Improvement 2 : Good dictionary      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, 'Yes')
+      #Improvement 3 : Good dictionary + Chiao      candidates[word] = findCandidateTranslationsChiao(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, f_transferTarget, 'Yes')
+      #Improvement 5 : Chiao reverse      candidates[word] = findCandidateTranslationsChiaoReverse(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, f_transferTarget)
+
+  targetWords = map(Token.__str__, targetCorpus)
+  testsetSize = len(testset) - len(unknownSourceWords)
+  for top in top_list :
+    tp = 0
+    print "==========="
+    print "TOP "+str(top)
+    for word in testset :
+      found = 0
+      mistake = False
+      for r in testset[word] :
+        if r in targetWords : mistake = True
+        if ( len(candidates[word]) > 0 ) and r in [candidates[word][i] for i in range( min([top, len(candidates[word])]) ) ] : 
+          #print "====================" + r
+          found = found+1
+      if found > 0 :
+        #print word
+        tp = tp+1
+      #else :
+        #if not mistake :
+          #print str(word) + " couldn't be found"
+        #else :
+          #print str(word)+" : "
+          #print candidates[word]
+      
+    ###################################################
+    # Print results' evaluation
+    precision = float(tp) / len(testset)
+    realPrecision = float(tp) / testsetSize
+    print "tp = "+str(tp)+" /"+str(testsetSize)
+    print "Precision = "+str(precision)
+    print "Real precision = "+str(realPrecision)
+
+
+def performTest(top_list, testset) :
+  candidates = {} #Map< String, List<String> >
+  unknownSourceWords = set()
+  for word in testset :
+    #print ">>Candidates for '"+ word+"'"
+    if word not in SOURCE_NETWORK :
+      print word+" not in source corpus"
+      unknownSourceWords.add(word)
+      candidates[word] = []
+    else :
+      #transferedVector = transferedNetwork[word] #getTransferedVector(word)
+      #Base      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 1 : Chiao      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 2 : Good dictionary      candidates[word] = findCandidateTranslations(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
+      #Improvement 3 : Good dictionary + Chiao      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
+      #Improvement 4 : Base reverse    candidates[word] = findCandidateTranslations(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 5 : Chiao reverse      candidates[word] = findCandidateTranslationsChiaoReverse(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 6 : Mix Base      candidates[word] = findCandidateTranslationsMixBase(word, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 7 : Mix Mean      candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION)
+      #print candidates[word]
+      #Improvement 8 : Mix Chiao REFAIRE
+      candidates[word] = findCandidateTranslationsMixChiao(word, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 9 : Mix Chiao separate : each 2-space rank is computed separately and we re-rank      candidates[word] = findCandidateTranslationsMixChiaoSeparate(word, max(top_list), SIMILARITY_FUNCTION)
+      
+      
+  targetWords = TARGET_NETWORK.keys()
+  testsetSize = len(testset) - len(unknownSourceWords)
+  for top in top_list :
+    tp = 0
+    print "==========="
+    print "TOP "+str(top)
+    for word in testset :
+      found = 0
+      mistake = False
+      for r in testset[word] :
+        if r in targetWords : mistake = True
+        if ( len(candidates[word]) > 0 ) and r in [candidates[word][i] for i in range( min([top, len(candidates[word])]) ) ] : 
+          #print "====================" + r 
+          found = found+1
+      if found > 0 :
+        print word 
+        tp = tp+1
+      #else :
+        #if not mistake :
+          #print str(word) + " couldn't be found"
+        #else :
+          #print str(word)+" : "
+          #print candidates[word]
+      
+    ###################################################
+    # Print results' evaluation
+    precision = float(tp) / len(testset)
+    realPrecision = float(tp) / testsetSize
+    print "tp = "+str(tp)+" /"+str(testsetSize)
+    print "Precision = "+str(precision)
+    print "Real precision = "+str(realPrecision)
+
 #-------------------------------------------------------------------------
 # Main
 #-------------------------------------------------------------------------
+def bof() : 
+  print ">LOADING COMPARABLE CORPORA..."
+  #sourceCorpus = iniCorpusFR(CORPUS_SOURCE)
+  corpus = []
+  sentenceID = -1
+  # List of stopwords and punctuation signes 
+  with open(STOPWORDS_FR, "r") as f:
+    content = f.read()
+    stopwords = content.split("\n")
+  with open("test.txt", "r") as f:
+    for sentence in f.split("."): 
+      if sentence.startswith("__") or sentence == " " : continue
+      sentenceID = sentenceID + 1
+      tokens = sentence.split(" ")
+      for i in range(len(tokens)):
+        tmp = tokens[i]
+        # Filter stopwords and ponctuation
+        if (tokens[i] not in stopwords) :
+          #print ">" + tokens[i]
+          t = Token("", tokens[i], "", sentenceID)
+          #print tmp[0] + " " +tags[0]
+          corpus.append(t)
+          SOURCE_SPACE.add(str(t))
+          #else : print tmp[0]+" "+tmp[1]
+  print ">COMPUTING CONTEXT VECTORS..."
+  start_time = time.time()
+  
+  windowSize = 2
+
+  cvsFileSource = "test_source_network.cvs"
+  POS_to_keep = []
+  sourceNetwork = computeContextVectors(corpus, windowSize)
+  saveContextNetwork(sourceNetwork, cvsFileSource)
+
 if __name__ == "__main__":
+  #--testset = getTestSet("testset.cvs")
+  #--print testset
   # Load comparable corpus : termer_{source,target}/corpus.lem
   print ">LOADING COMPARABLE CORPORA..."
   sourceCorpus = iniCorpusFR(CORPUS_SOURCE)
@@ -347,7 +1030,10 @@ if __name__ == "__main__":
 
   # Load bilingual dictionaries
   print ">LOADING BILINGUAL DICTIONARY..."
-  bilingualDico = getBilingualDictionary(BILINGUAL_DICO)
+  getBilingualDictionary(BILINGUAL_DICO) #, bilingualDico, bilingualDico_inv)
+  bilingualDico = DICO
+  bilingualDico_inv = DICO_INV
+
 
   # Load entries to translate
 
@@ -360,54 +1046,124 @@ if __name__ == "__main__":
 ## adjectives
 ## and adverbs
   print ">COMPUTING CONTEXT VECTORS..."
+  start_time = time.time()
+  
   windowSize = 2
 
   cvsFileSource = "source_network.cvs"
   POS_to_keep = []
   sourceNetwork = computeContextVectors(sourceCorpus, windowSize)
-  saveContextNetwork(sourceNetwork, cvsFileSource) 
+  saveContextNetwork(sourceNetwork, cvsFileSource)
 
   cvsFileTarget = "target_network.cvs"
   targetNetwork = computeContextVectors(targetCorpus, windowSize)
   saveContextNetwork(targetNetwork, cvsFileTarget)
 
-# TODO Normalize vectors
-#Chiao : tfidf
-#Morin : LO(i,f)
+  TARGET_NETWORK=targetNetwork
+  SOURCE_NETWORK=sourceNetwork
+  
+  elapsed_time = time.time() - start_time
+  print str(elapsed_time)
 
+  targetFreqCounts = Counter(map(Token.__str__, targetCorpus)) #dictionary
+  
+# Normalize vectors
+  print ">NORMALIZING CONTEXT VECTORS..."
+  start_time = time.time()
+
+#Chiao : tfidf
+  normalizeTFIDF(sourceNetwork)
+  normalizeTFIDF(targetNetwork)
+#Morin : LO(i,f)
+  #normalizeLO1(sourceNetwork)
+  #normalizeLO1(targetNetwork)
+
+  elapsed_time = time.time() - start_time
+  print str(elapsed_time)
+
+##def targetToSource() :
+#### TargetToSource
+#### Transferring context vectors
+### use bilingual dictionary 
+##  print ">TRANSFERRING CONTEXT VECTORS..."
+##  start_time = time.time()
+##
+##  sourceFreqCounts = Counter(map(Token.__str__, sourceCorpus))
+##  transferedNetwork = {}
+##  for word in targetNetwork : 
+##    transferedNetwork[word] = transfer(word, targetNetwork[word], bilingualDico_inv, sourceFreqCounts)
+##
+##  print "Source space :"+str(len(SOURCE_SPACE))+", Pivot words : "
+##  print "Target space :"+str(len(TARGET_SPACE))+", Pivot words : "+str(len(PIVOT_WORDS_SOURCE))
+##
+##  targetFreqCounts = Counter(map(Token.__str__, targetCorpus))
+##  for word in sourceNetwork : 
+##    SOURCE_TRANSFERRED_VECTORS[word] = transfer(word, sourceNetwork[word], bilingualDico, targetFreqCounts)
+##  
+###Test  
+##  print ">TESTING..."
+##    
+##  #testset = test.getTestSet()
+##  testset = getTestSet("testset.cvs")
+##  #print testset
+##  results = {}
+#### Finding candidate translations
+##  start_time = time.time()
+##  def ftransferSource(word) : return transfer(word, sourceNetwork[word], bilingualDico, Counter(map(Token.__str__, targetCorpus)))
+##  #makeTest([40], testset, transferedNetwork, targetNetwork, ftransferTarget)
+##  makeTest([30, 20, 10, 5, 1], testset, sourceNetwork, transferedNetwork, ftransferSource) # 90, 80, 70, 60, 50, 40, 
+##  elapsed_time = time.time() - start_time
+##  print str(elapsed_time)
+##
+
+  
+#def sourceToTarget() :
 ## Transferring context vectors
 # use bilingual dictionary 
   print ">TRANSFERRING CONTEXT VECTORS..."
-  transferedNetwork = {}
-  for word in sourceNetwork : 
-    transferedNetwork[word] = transfer(word, sourceNetwork[word], bilingualDico)
+  start_time = time.time()
+
+  TARGET_TRANSFERRED_VECTORS = {}
+  SOURCE_TRANSFERRED_VECTORS = {}
   
+  targetFreqCounts = Counter(map(Token.__str__, targetCorpus))
+  for word in sourceNetwork : 
+    SOURCE_TRANSFERRED_VECTORS[word] = transfer(word, sourceNetwork[word], bilingualDico, targetFreqCounts)
+  print "Source space :"+str(len(SOURCE_SPACE))+", Pivot words : "+str(len(PIVOT_WORDS))
+  print "Target space :"+str(len(TARGET_SPACE))+", Pivot words : " #PIVOT_WORDS_TARGET
+  PIVOT_WORDS = set()
+  
+  sourceFreqCounts = Counter(map(Token.__str__, sourceCorpus))
+  for word in targetNetwork : 
+    TARGET_TRANSFERRED_VECTORS[word] = transfer(word, targetNetwork[word], bilingualDico_inv, sourceFreqCounts)
+  print "Source space :"+str(len(SOURCE_SPACE))+", Pivot words : "
+  print "Target space :"+str(len(TARGET_SPACE))+", Pivot words : "+str(len(PIVOT_WORDS))
+  
+#Test  
   print ">TESTING..."
-  testset = getTestSet("testset.txt")
+    
+  #testset = test.getTestSet()
+  testset = getTestSet("testset.cvs")
+  #print testset
   results = {}
 ## Finding candidate translations
-  top = 10
-  tp = 0
-  for word in testset :
-    print ">>Candidates for '"+ word+"'"
-    transferedVector = transferedNetwork[word] #getTransferedVector(word)
-    print ">>>using COSINE : "
-    candidates = findCandidateTranslations(word, transferedVector, targetNetwork, top, COSINE)
-    found = 0
-    for r in testset[word] :
-      if r in candidates : 
-        print r
-        found = found+1
-    if found > 0 :
-      print r+" correct"
-      tp = tp+1
-    #print ">>>using JACCARD : "
-    #candidates = findCandidateTranslations(word, transferedVector, targetNetwork, top, JACCARD)
-#Cosine
+  start_time = time.time()
+  #def ftransferTarget(word) : return transfer(word, targetNetwork[word], bilingualDico_inv, Counter(map(Token.__str__, sourceCorpus)))
+  #makeTest([40], testset, transferedNetwork, targetNetwork, ftransferTarget)
+  #makeTest([30, 20, 10, 5, 1], testset, transferedNetwork, targetNetwork, ftransferTarget) # 
+  performTest([30, 20, 10, 5, 1], testset) #90, 80, 70, 60, 50, 40, 
+  elapsed_time = time.time() - start_time
+  print str(elapsed_time)
 
-###################################################
-
-  # Print results' evaluation
-  print "===========\ntp = "+str(tp)+"\nPrecision="+str(tp/len(testset))
+def next() : 
+  start_time = time.time()
+  makeTest(20, testset, transferedNetwork, targetNetwork)
+  elapsed_time = time.time() - start_time
+  print str(elapsed_time)
   
+  start_time = time.time()
+  makeTest(10, testset, transferedNetwork, targetNetwork)
+  elapsed_time = time.time() - start_time
+  print str(elapsed_time)
+
 

@@ -1,0 +1,82 @@
+﻿Source space :14319, Pivot words : 
+Target space :21990, Pivot words : 4811 (21.87%)
+
+If not in corpus, check without accent 
+
+TEST SET
+3 words cannot be found because they do not appear in source corpus
+11 words cannot be found because their translations are not in target corpus
+
+WITH BILINGUAL DICTIONARY and WINDOW = 5 and MIN_WORD_LENGTH = 3 dt=[300, 500]
+normalization ; similarity ; dictionary	; def top		TOP 20 		| TOP 10|TOP 5-1 | TOP 30 | TOP 40 | TOP 50 | TOP 60 | TOP 70 | TOP 80 | TOP 90
+tfidf(log) + cosine + first_trad ; score			10/58 :	0.172	| 5/58  |	|
+tfidf(log10) + cosine + first_trad ; score			10/58 :	0.172	| 5/58  |	| ??/98  | ??/98  | ??/98  | ??/98  | ??/98  | ??/98  | ??/98
+tfidf(log) + cosine + all_trad_weighted_by_frequency; score	34/98 : 0.346	| 27/98 |	| 40/98 : 0.408   | ??/98  | ??/98  | ??/98  | ??/98  | ??/98
+tfidf(log) + cosine + all_trad_same_weight ; score		38/98 : 0.387	| 27/98 : 0.275 | 44/98 : 0.448   | ??/98  | ??/98  | ??/98  | ??/98  | ??/98
+LO + cosine + all_trad_weighted_by_frequency ; score		/98 : 		| /98 : 	| ?/98 : 0.
+LO + cosine + all_trad_same_weight ; score			35/98 : 0.357	| 28/98 : 0.285	| 38/98 : 0.387   | ??/98  | ??/98  | ??/98  | ??/98  | ??/98
+
+*>tfidf(log) + cosine + all_trad_weighted_by_frequency; list length 35/98 	| 26/98 : 0.040 | 38/98  | 41/98  | 43/98  | 45/98  | 46/98  | 47/98  | 47/98
+5*>tfidf(log) + cosine + all_trad_same_weight ; list length	38/98 : 0.339	| 27/98 : 0.255	| 43/98  | 44/98  | 46/98  | 47/98  | 47/98  | 50/98  | 52/98
+*>tfidf(log) + cosine + most_freq_trad_only; list length 	32/98  		| 25/98 :  	| 37/98  | 39/98  | 43/98  | 45/98  | 46/98  | 49/98  | 51/98 
+*>LO + cosine + all_trad_weighted_by_frequency ; list length	35/98 : 0.102	| 26/98 : 	| 38/98  | 39/98  | 43/98  | 45/98  | 46/98  | 46/98  | 47/98
+6*>LO + cosine + all_trad_same_weight ; list length 		38/98 : 0.377	| 26/98 : 0.255	| 43/98  | 44/98  | 46/98  | 47/98  | 47/98  | 50/98  | 52/98
+*>LO + cosine + most_freq_trad_only ; list length 		32/98 : 0.377	| 25/98 : 0.255	| 37/98  | 39/98  | 43/98  | 45/98  | 46/98  | 49/98  | 51/98
+*>NONE + cosine + all_trad_weighted_by_frequency ; list length	35/98 : 0.102	| 26/98 :  	| 38/98  | 39/98  | 43/98  | 45/98  | 46/98  | 46/98  | 47/98
+6*>NONE + cosine + all_trad_same_weight ; list length		38/98 : 0.377	| 26/98 : 0.255	| 43/98  | 44/98  | 46/98  | 47/98  | 47/98  | 50/98  | 52/98
+*>NONE + cosine + most_freq_trad_only ; list length		32/98 : 0.377	| 25/98 : 0.255	| 37/98  | 39/98  | 43/98  | 45/98  | 46/98  | 49/98  | 51/98
+
+&2*>tfidf(log) + Jaccard + all_trad_weighted_by_frequency; list length 44/98  	| 38/98 | 34-17	| 48/98  | 51/98  | 53/98  | 55/98  | 57/98  | 58/98  | 58/98
+*>tfidf(log) + Jaccard + all_trad_same_weight ; list length	40/98 : 0.408	| 36/98 	| 42/98  | 44/98  | 45/98  | 47/98  | 47/98  | 47/98  | 49/98
+&1*>tfidf(log) + Jaccard + most_freq_trad_only; list length 	44/98  		| 39/98 | 35-17	| 47/98  | 49/98  | 52/98  | 55/98  | 57/98  | 57/98  | 58/98
+3*>LO + Jaccard + all_trad_weighted_by_frequency ; list length	42/98 : 0.040	| 35/98 | 27-13	| 44/98  | 45/98  | 48/98  | 48/98  | 48/98  | 51/98  | 51/98
+*>LO + Jaccard + all_trad_same_weight ; list length 		0/98 : 0.071	| 0/98 		| 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98
+*>LO + Jaccard + most_freq_trad_only; ; list length 		0/98 : 0.0	| 0/98		| 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98
+3*>NONE + Jaccard + all_trad_weighted_by_frequency; list length 42/98 : 0.091	| 35/98 | 27-13	| 44/98  | 45/98  | 48/98  | 48/98  | 48/98  | 51/98  | 51/98
+*>NONE + Jaccard + all_trad_same_weight ; list length 		0/98 : 0.071	| 0/98 : 0.020	| 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98
+*>NONE + Jaccard + most_freq_trad_only; list length 		0/98 : 0.071	| 0/98 : 0.020	| 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98   | 0/98
+-----------------------------------------------------------------------------------------------
+WITH BILINGUAL DICTIONARY and WINDOW = 5 and MIN_WORD_LENGTH = 3 and Chiao and TRAINING_TOP = 30 dt=[2394, 7739, ?, 6634, 14989] ie [39mn, 2h08mn, ?, 1h50mn, 4h]
+normalization ; similarity ; dictionary	; def top			TOP 20 	| TOP 10|TOP 5-1| TOP 30 | TOP 40 | TOP 50 | TOP 60 | TOP 70 | TOP 80 | TOP 90
+&1>1*>tfidf(log) + Jaccard + most_freq_trad_only; list length 		46/98  	| 42/98 | 38-17	| 47/98  || 49/98  | 51/98  | 53/98  | 53/98  | 53/98  | 53/98
+3>2*>tfidf(log) + Jaccard + all_trad_weighted_by_frequency; list length 42/98  	| 38/13 | 32-13	| 46/98  || 46/98  | 49/98  | 49/98  | 49/98  | 50/98  | 51/98
+3>3*>LO + Jaccard + all_trad_weighted_by_frequency ; list length --	41/98 	| 36/98 | 29-13	| 44 (0) || 45/98  | 48/98  | 48/98  | 48/98  | 51/98  | 51/98
+4>3*>NONE + Jaccard + all_trad_weighted_by_frequency; list length 	41/98	| 36/98 | 29-13	| 44/98  || 45/98  | 48/98  | 48/98  | 48/98  | 51/98  | 51/98
+2>x*>tfidf(log) + Jaccard + all_trad_same_weight ; list length 		42/98 	| 40/98 | ??-?? | 42/98  || ??/98  | ??/98
+
+early exit : follicule.,,,,? ovocyte,,,,? exémestane,,,,? carcinogenèse,,,,? locus,,,,? docetaxel,,,,? infertilité,,,,? lépirubicine.,,? sein,,..? oestradiol,,,? 
+? : not tested	. : no	, : yes
+
+-----------------------------------------------------------------------------------------------
+WITH BILINGUAL DICTIONARY and WINDOW = 5 and MIN_WORD_LENGTH = 3 and GOOD DICTIONARY dt=[429, 375, ?, ?] ie [39mn, 2h08mn, ?, 1h50mn, 4h]
+normalization ; similarity ; dictionary	; def top			TOP 20 	| TOP 10|TOP 5-1| TOP 30 | TOP 40 | TOP 50 | TOP 60 | TOP 70 | TOP 80 | TOP 90
+1>1>1*>tfidf(log) + Jaccard + most_freq_trad_only; list length 		67/98  	| 65/98 | 65-59	| 69/98  | 69/98  | 69/98  | 69/98  | 69/98  | 70/98  | 70/98
+2>3>2*>tfidf(log) + Jaccard + all_trad_weighted_by_frequency; list length 68/98 | 65/98 | 63-57	| 46/98  | 68/98  | 69/98  | 69/98  | 69/98  | 69/98  | 70/98
+3>3>3*>LO + Jaccard + all_trad_weighted_by_frequency ; list length 	67/98 	| 64/98 | 63-58	| 68 (0) | 69/98  | 69/98  | 69/98  | 69/98  | 69/98  | 69/98
+3>4>3*>NONE + Jaccard + all_trad_weighted_by_frequency; list length 	67/98 	| 64/98 | 63-58	| 68 (0) | 69/98  | 69/98  | 69/98  | 69/98  | 69/98  | 69/98
+?>2>x*>tfidf(log) + Jaccard + all_trad_same_weight ; list length 		42/98 	| 40/98 | ??-?? | 42/98  | ??/98  | ??/98
+
+-----------------------------------------------------------------------------------------------
+WITH BILINGUAL DICTIONARY and WINDOW = 5 and MIN_WORD_LENGTH = 3 and GOOD DICTIONARY and Chiao and TRAINING_TOP = 30 dt=[840, ?, ?, ?, ?] ie [39mn, 2h08mn, ?, 1h50mn, 4h]
+normalization ; similarity ; dictionary	; def top			TOP 20 	| TOP 10|TOP 5-1| TOP 30 | TOP 40 | TOP 50 | TOP 60 | TOP 70 | TOP 80 | TOP 90
+1>1>1>1*>tfidf(log) + Jaccard + most_freq_trad_only; list length	69/98  	| 65/98 | 65-60	| 69/98  || 69/98  | 69/98  | 69/98  | 69/98  | 70/98  | 70/98
+
+-----------------------------------------------------------------------------------------------
+WITH BILINGUAL DICTIONARY and WINDOW = 5 and MIN_WORD_LENGTH = 3 and MIX_BASE
+normalization ; similarity ; dictionary	; def top			TOP 20 	| TOP 10|TOP 5-1| TOP 30 | TOP 40 | TOP 50 | TOP 60 | TOP 70 | TOP 80 | TOP 90
+&1>1>1>1*>tfidf(log) + Jaccard + most_freq_trad_only; list length	45/98  	| 38/98 | 37-15	| 54/98  || 49/98  | 54/98  | 54/98  | 55/98  | 55/98  | 56/98
+
+
+
+PRE-PROCESSING : Added condition 'isWord'
+Source space :14319, Pivot words : 5103 (34.3%)
+Target space :21990, Pivot words : 
+
+LO1 : 2 mn 12 s / 2 mn 
+LO : 11 mn 55 s (ok mm resultats)
+TFIDF : 1s
+Reference = 43% precision
+
+Best normalization function : tfidf (feature : best score for TOP 50)
+Best similarity/ranking function : Jaccard (feature : best score for TOP 20 for each normalization function)
+WITH COGNATES DICTIONARY

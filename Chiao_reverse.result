@@ -1,0 +1,227 @@
+﻿>LOADING COMPARABLE CORPORA...
+>LOADING BILINGUAL DICTIONARY...
+>COMPUTING CONTEXT VECTORS...
+8.38199996948
+>NORMALIZING CONTEXT VECTORS...
+1.07399988174
+>TRANSFERRING CONTEXT VECTORS...
+Source space :14319, Pivot words : 
+Target space :21990, Pivot words : 4811
+>TESTING...
+
+===========
+TOP 30 : + 6
+>letrozole
+grossesse
+mastectomie
+kinase
+mortalité
+protéine
+paclitaxel
+drainage
+>>irradiation
+doxorubicine
+symptôme
+exérèse
+scintigraphie
+curage
+diagnostic
+aromatase
+tamoxifène
+placebo
+>cyclophosphamide
+anticorps
+mammographie
+lésion
+ganglion
+anastrozole
+létrozole
+docétaxel
+apoptose
+injection
+dépistage
+prolifération
+radiothérapie
+oestrogène
+sein
+chimiothérapie
+>échographie
+progestérone
+gène
+adjuvant
+toxicité
+carcinome
+pronostique
+récepteur
+chirurgie
+>ablation
+>biopsie
+tumeur
+oncologue
+tp = 47 /98
+Precision = 0.456310679612
+Real precision = 0.479591836735
+===========
+TOP 20
+letrozole
+grossesse
+mastectomie
+kinase
+mortalité
+protéine
+paclitaxel
+drainage
+doxorubicine
+symptôme
+exérèse
+scintigraphie
+curage
+diagnostic
+aromatase
+tamoxifène
+placebo
+cyclophosphamide
+anticorps
+mammographie
+lésion
+ganglion
+anastrozole
+létrozole
+docétaxel
+apoptose
+injection
+dépistage
+prolifération
+radiothérapie
+oestrogène
+sein
+chimiothérapie
+échographie
+progestérone
+gène
+adjuvant
+toxicité
+carcinome
+pronostique
+récepteur
+chirurgie
+ablation
+biopsie
+tumeur
+oncologue
+tp = 46 /98
+Precision = 0.446601941748
+Real precision = 0.469387755102
+===========
+TOP 10
+grossesse
+mastectomie
+kinase
+mortalité
+protéine
+paclitaxel
+drainage
+doxorubicine
+symptôme
+exérèse
+scintigraphie
+curage
+diagnostic
+aromatase
+tamoxifène
+cyclophosphamide
+anticorps
+mammographie
+lésion
+ganglion
+anastrozole
+létrozole
+docétaxel
+apoptose
+injection
+dépistage
+prolifération
+radiothérapie
+oestrogène
+sein
+chimiothérapie
+échographie
+progestérone
+gène
+adjuvant
+toxicité
+carcinome
+pronostique
+récepteur
+chirurgie
+biopsie
+oncologue
+tp = 42 /98
+Precision = 0.407766990291
+Real precision = 0.428571428571
+===========
+TOP 5
+grossesse
+mastectomie
+kinase
+mortalité
+protéine
+paclitaxel
+drainage
+doxorubicine
+exérèse
+curage
+diagnostic
+aromatase
+tamoxifène
+cyclophosphamide
+anticorps
+mammographie
+lésion
+ganglion
+anastrozole
+létrozole
+docétaxel
+apoptose
+injection
+dépistage
+radiothérapie
+oestrogène
+sein
+chimiothérapie
+échographie
+progestérone
+gène
+adjuvant
+toxicité
+carcinome
+pronostique
+récepteur
+chirurgie
+oncologue
+tp = 38 /98
+Precision = 0.368932038835
+Real precision = 0.387755102041
+===========
+TOP 1
+grossesse
+kinase
+aromatase
+cyclophosphamide
+anticorps
+mammographie
+anastrozole
+sein
+chimiothérapie
+échographie
+progestérone
+adjuvant
+toxicité
+carcinome
+pronostique
+chirurgie
+oncologue
+tp = 17 /98
+Precision = 0.165048543689
+Real precision = 0.173469387755
+2830.04699993

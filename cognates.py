@@ -3,7 +3,7 @@
 # Compute a dictionary of cognates based on two comparable corpora
 # Write the dictionary as a file
 #-------------------------------
-import re, sys, os, nltk
+import re, sys, os #, nltk
 #1 import itertools
 from types import *
 
