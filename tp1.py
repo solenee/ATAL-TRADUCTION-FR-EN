@@ -105,8 +105,12 @@ SOURCE_NETWORK = {}
 
 def isWord(w) :
   """ Check if a String matches word pattern : [a-zA-Z]([a-zA-Z0-9'-])* """
-  return re.match('[a-zA-Zàâéèêëïöûü]([a-zA-Z0-9àâéèêëïöûü\'_-])*', w)
+  res = re.match("[a-zA-Zàâéèêëîïôöûü]([a-zA-Z0-9àâéèêëîïôöûü\'_-])*", w)
+  return res and (len(res.group(0)) == len(w))
 
+def clean(word) : 
+  return word.strip(",?;.:/!'")
+  
 # For French : 
 # CoveredText/POS:Gender:Number/Lemma
 # CoveredText/POS/Lemma
@@ -123,7 +127,7 @@ def iniCorpusFR(filename) :
     stopwords = content.split("\n")
   with open(filename, "r") as f:
     for sentence in f: 
-      if sentence.startswith("__") or sentence == " " : continue
+      if sentence.startswith("__") or sentence == " " or sentence == "": continue
       sentenceID = sentenceID + 1
       tokens = sentence.split(" ")
       for i in range(len(tokens)):
@@ -131,7 +135,7 @@ def iniCorpusFR(filename) :
         # Filter stopwords and ponctuation
         if len(tmp) > 1 :
           tmp[1] = tmp[1].split(":")[0]
-          tmp[-1]= tmp[-1].split(":")[0]
+          tmp[-1]= clean(tmp[-1].split(":")[0]) #lemma
           if (len(tmp[0]) >= MIN_WORD_LENGTH) and (isWord(tmp[0])) and (isWord(tmp[1])) and (tmp[0] not in stopwords) and (tmp[-1] not in stopwords) and (tmp[1] in ["SBC", "ADJ", "ADJ2PAR", "ADJ1PAR", "ADV", "VCJ", "VNCNT", "VNCFF", "VPAR"]) :
 #(tmp[1] not in ["DT", "IN", "CD", "PREP", "WDT"]) :
             #print ">" + tokens[i]
@@ -152,16 +156,17 @@ def iniCorpusEN(filename) :
   # List of stopwords and punctuation signes 
   with open(STOPWORDS_EN, "r") as f:
     content = f.read()
-    stopwords = content.split("\n")
+    stopwords = content. split("\n")
   with open(filename, "r") as f:
     for sentence in f: 
-      if sentence.startswith("__") or sentence == " " : continue
+      if sentence.startswith("__") or sentence == " " or sentence == "" : continue
       sentenceID = sentenceID + 1
       tokens = sentence.split(" ")
       for i in range(len(tokens)):
         tmp = tokens[i].split("/")
         # Filter stopwords and ponctuation
         if len(tmp) > 1 :
+          tmp[1] = clean(tmp[1])
           if (len(tmp[0]) >= MIN_WORD_LENGTH) and (isWord(tmp[0])) and (isWord(tmp[1])) and (tmp[0] not in stopwords) and (tmp[-2] not in stopwords) and (tmp[1] in ["NN", "NNS", "NNP", "NNPS", "NN|JJ", "JJ", "JJR", "VB", "VBZ", "VBN", "VBD", "VBG", "VBP",]) :
 #(tmp[1] not in ["DT", "IN", "CC", "PRP", "TO"]) :
             #print ">" + tokens[i]
@@ -315,10 +320,10 @@ def transfer(word, contextVector, bilingualDico, targetFreqCounts) :
         totalCounts = sum(assoc.values())
         m = max([targetFreqCounts[x] for x in bilingualDico[word2] if targetFreqCounts[x] > 0])
         for t in assoc :
-          #Most_freq_only
-          if assoc[t] == m : transferedVector[t] = contextVector[word2]
+          #Most_freq_only          if assoc[t] == m : transferedVector[t] = contextVector[word2]
           #all_trad_weighted_by_frequency :          transferedVector[t] = contextVector[word2] * ( float(assoc[t]) / totalCounts )
-          #all_trad_same_weight :          transferedVector[t] = contextVector[word2]
+          #all_trad_same_weight :               
+          transferedVector[t] = contextVector[word2]
   #saveVector(word, contextVector, "CONTEXT")
   #saveVector(word, transferedVector, "TRANSFERED")
   return transferedVector
@@ -677,14 +682,14 @@ def findCandidateTranslationsMixBase(word, nb, similarityFunction) :
   return result                                    
 
   
-def findCandidateTranslationsChiao(word, transferedVector, targetNetwork, nb, similarityFunction, f_transferTarget, f_filter_candidates=None) :
+def findCandidateTranslationsChiao(word, transferedVector, targetNetwork, nb, similarityFunction, f_transferTarget=None, f_filter_candidates=None) :
   #print "==========="
-  print word
+  #print word
   #list of the nb best scores found
   candidates = {}
   scores = []
   if f_filter_candidates is None :
-    print "f_filter_candidates is None"
+    #print "f_filter_candidates is None"
     candidates = findCandidateScores(word, transferedVector, targetNetwork, nb, similarityFunction)
     scores = sorted(candidates.keys(), reverse=True)
   else :
@@ -720,6 +725,7 @@ def findCandidateTranslationsChiao(word, transferedVector, targetNetwork, nb, si
       cand_transferedVector = TARGET_TRANSFERRED_VECTORS[cand]
     else :
       #print "transfer::"
+      raise RuntimeError("f_transferTarget is not defined in findCandidateTranslationsChiao")
       cand_transferedVector = f_transferTarget(cand)
       TARGET_TRANSFERRED_VECTORS[cand] = cand_transferedVector
     cand_reverse = findCandidateScores(cand, cand_transferedVector, sourceNetwork, nb, similarityFunction)
@@ -867,7 +873,7 @@ def similarity(x, y, choice) :
     if w in x : sigma_XiYi = sigma_XiYi + x[w]*y_w
   
   if choice == COSINE : result = sigma_XiYi / ( sqrt(sigma_Xi2) * sqrt(sigma_Yi2) )
-  if choice == JACCARD : result = sigma_XiYi / ( sigma_Xi2 + sigma_Yi2 - sigma_XiYi )
+  if choice == JACCARD : result = sigma_XiYi / ( sigma_Xi2 + sigma_Yi2 - sigma_XiYi ) #CF Chiao et al.
   else : result = 0.5 * ((sigma_XiYi / ( sqrt(sigma_Xi2) * sqrt(sigma_Yi2) )) + (sigma_XiYi / ( sigma_Xi2 + sigma_Yi2 - sigma_XiYi )))
   return result
 
@@ -882,8 +888,7 @@ def makeTest(top_list, testset, transferedNetwork, targetNetwork, f_transferTarg
       candidates[word] = []
     else :
       transferedVector = transferedNetwork[word] #getTransferedVector(word)
-      #Base
-      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION)
+      #Base      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 1 : Chiao      candidates[word] = findCandidateTranslationsChiao(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, f_transferTarget)
       #Improvement 2 : Good dictionary      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, 'Yes')
       #Improvement 3 : Good dictionary + Chiao      candidates[word] = findCandidateTranslationsChiao(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION, f_transferTarget, 'Yes')
@@ -923,6 +928,9 @@ def makeTest(top_list, testset, transferedNetwork, targetNetwork, f_transferTarg
 
 
 def performTest(top_list, testset) :
+  averageMAP = 0
+  averageMAP_recall = 0
+  averageMAP_best = 0
   candidates = {} #Map< String, List<String> >
   unknownSourceWords = set()
   for word in testset :
@@ -933,8 +941,9 @@ def performTest(top_list, testset) :
       candidates[word] = []
     else :
       #transferedVector = transferedNetwork[word] #getTransferedVector(word)
-      #Base      candidates[word] = findCandidateTranslations(word, transferedVector, targetNetwork, max(top_list), SIMILARITY_FUNCTION)
-      #Improvement 1 : Chiao      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
+      #Base         candidates[word] = findCandidateTranslations(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 1 : Chiao      
+      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 2 : Good dictionary      candidates[word] = findCandidateTranslations(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
       #Improvement 3 : Good dictionary + Chiao      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
       #Improvement 4 : Base reverse    candidates[word] = findCandidateTranslations(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, max(top_list), SIMILARITY_FUNCTION)
@@ -942,8 +951,7 @@ def performTest(top_list, testset) :
       #Improvement 6 : Mix Base      candidates[word] = findCandidateTranslationsMixBase(word, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 7 : Mix Mean      candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION)
       #print candidates[word]
-      #Improvement 8 : Mix Chiao REFAIRE
-      candidates[word] = findCandidateTranslationsMixChiao(word, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 8 : Mix Chiao REFAIRE      candidates[word] = findCandidateTranslationsMixChiao(word, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 9 : Mix Chiao separate : each 2-space rank is computed separately and we re-rank      candidates[word] = findCandidateTranslationsMixChiaoSeparate(word, max(top_list), SIMILARITY_FUNCTION)
       
       
@@ -954,6 +962,9 @@ def performTest(top_list, testset) :
     print "==========="
     print "TOP "+str(top)
     for word in testset :
+      wordMAP = 0
+      wordMAP_recall = 0
+      wordMAP_best = 0
       found = 0
       mistake = False
       for r in testset[word] :
@@ -961,9 +972,17 @@ def performTest(top_list, testset) :
         if ( len(candidates[word]) > 0 ) and r in [candidates[word][i] for i in range( min([top, len(candidates[word])]) ) ] : 
           #print "====================" + r 
           found = found+1
+          wordMAP = wordMAP + ( 1.0 / (candidates[word].index(r)+1) )
+          wordMAP_best = max(wordMAP_best, ( 1.0 / (candidates[word].index(r)+1) ))
       if found > 0 :
-        print word 
+        wordMAP = float(wordMAP) / len(testset[word])
+        wordMAP_recall = float(wordMAP) / found
+        #wordMAP_best = wordMAP_best
+        #print word + "\t"+ str(wordMAP)
         tp = tp+1
+      averageMAP = averageMAP + wordMAP
+      averageMAP_recall = averageMAP_recall + wordMAP_recall
+      averageMAP_best = averageMAP_best + wordMAP_best
       #else :
         #if not mistake :
           #print str(word) + " couldn't be found"
@@ -975,9 +994,15 @@ def performTest(top_list, testset) :
     # Print results' evaluation
     precision = float(tp) / len(testset)
     realPrecision = float(tp) / testsetSize
+    averageMAP = float(averageMAP) / testsetSize
+    averageMAP_recall = float(averageMAP_recall) / testsetSize
+    averageMAP_best = float(averageMAP_best) / testsetSize
     print "tp = "+str(tp)+" /"+str(testsetSize)
     print "Precision = "+str(precision)
     print "Real precision = "+str(realPrecision)
+    print "MAP (classic) = "+str(averageMAP)
+    print "MAP (recall) = "+str(averageMAP_recall)
+    print "MAP (best) = "+str(averageMAP_best)
 
 #-------------------------------------------------------------------------
 # Main
@@ -1053,11 +1078,11 @@ if __name__ == "__main__":
   cvsFileSource = "source_network.cvs"
   POS_to_keep = []
   sourceNetwork = computeContextVectors(sourceCorpus, windowSize)
-  saveContextNetwork(sourceNetwork, cvsFileSource)
+  #saveContextNetwork(sourceNetwork, cvsFileSource)
 
   cvsFileTarget = "target_network.cvs"
   targetNetwork = computeContextVectors(targetCorpus, windowSize)
-  saveContextNetwork(targetNetwork, cvsFileTarget)
+  #saveContextNetwork(targetNetwork, cvsFileTarget)
 
   TARGET_NETWORK=targetNetwork
   SOURCE_NETWORK=sourceNetwork
@@ -1151,7 +1176,7 @@ if __name__ == "__main__":
   #def ftransferTarget(word) : return transfer(word, targetNetwork[word], bilingualDico_inv, Counter(map(Token.__str__, sourceCorpus)))
   #makeTest([40], testset, transferedNetwork, targetNetwork, ftransferTarget)
   #makeTest([30, 20, 10, 5, 1], testset, transferedNetwork, targetNetwork, ftransferTarget) # 
-  performTest([30, 20, 10, 5, 1], testset) #90, 80, 70, 60, 50, 40, 
+  performTest([30, 20, 10, 5, 1], testset) # 90, 80, 70, 60, 50, 40, 
   elapsed_time = time.time() - start_time
   print str(elapsed_time)
 
