@@ -1,0 +1,56 @@
+>LOADING COMPARABLE CORPORA...
+>LOADING BILINGUAL DICTIONARY...
+>COMPUTING AND NORMALIZING (TFIDF) CONTEXT VECTORS...
+3.84115290642
+>TRANSFERRING CONTEXT VECTORS...
+Source space :13615, Pivot words : 5092
+Target space :20229, Pivot words : 
+Source space :13615, Pivot words : 
+Target space :20229, Pivot words : 4804
+>TESTING...
+capécitabine not in source corpus
+asthénie not in source corpus
+celecoxib not in source corpus
+tamoxiféne not in source corpus
+arthralgie not in source corpus
+===========
+TOP 30
+tp = 50 /98
+Precision = 0.485436893204
+Real precision = 0.510204081633
+MAP (classic) = 0.254221388022
+MAP (recall) = 0.25332853088
+MAP (best) = 0.262639755369
+===========
+TOP 20
+tp = 48 /98
+Precision = 0.466019417476
+Real precision = 0.489795918367
+MAP (classic) = 0.256058587653
+MAP (recall) = 0.255156619723
+MAP (best) = 0.264562856708
+===========
+TOP 10
+tp = 45 /98
+Precision = 0.436893203883
+Real precision = 0.459183673469
+MAP (classic) = 0.253661595566
+MAP (recall) = 0.252759534668
+MAP (best) = 0.262166741168
+===========
+TOP 5
+tp = 38 /98
+Precision = 0.368932038835
+Real precision = 0.387755102041
+MAP (classic) = 0.243829880227
+MAP (recall) = 0.243820675524
+MAP (best) = 0.252845238855
+===========
+TOP 1
+tp = 17 /98
+Precision = 0.165048543689
+Real precision = 0.173469387755
+MAP (classic) = 0.170855406941
+MAP (recall) = 0.170855313016
+MAP (best) = 0.176049441213
+202.283063889

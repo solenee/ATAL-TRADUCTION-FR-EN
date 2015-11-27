@@ -84,7 +84,7 @@ MIN_WORD_LENGTH=3
 SIMILARITY_FUNCTION=JACCARD #COSINE #
 METHOD=CHIAO
 STRATEGY_DICO="TO BE DEFINED"
-TOLERANCE_RATE=1.5 #When there is several candidates with the same score, we accept
+TOLERANCE_RATE=1 #1.5 #When there is several candidates with the same score, we accept
 NORMALIZATION=TFIDF
 STRATEGY_TRANSLATE=SAME_WEIGHT #MOST_FREQ
 # to process max. TOP*TOLERANCE_RATE candidates
@@ -974,15 +974,15 @@ def performTest(top_list, testset) :
     else :
       #transferedVector = transferedNetwork[word] #getTransferedVector(word)
       #Base                 candidates[word] = findCandidateTranslations(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
-      #Improvement 1 : Chiao             candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
+      #Improvement 1 : Chiao             
+      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 2 : Good dictionary      candidates[word] = findCandidateTranslations(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
       #Improvement 3 : Good dictionary + Chiao      candidates[word] = findCandidateTranslationsChiao(word, SOURCE_TRANSFERRED_VECTORS[word], TARGET_NETWORK, max(top_list), SIMILARITY_FUNCTION, 'Yes')
       #Improvement 4 : Base reverse          candidates[word] = findCandidateTranslations(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 5 : Chiao reverse      candidates[word] = findCandidateTranslationsChiaoReverse(word, SOURCE_NETWORK[word], TARGET_TRANSFERRED_VECTORS, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 6 : Mix Base              candidates[word] = findCandidateTranslationsMixBase(word, max(top_list), SIMILARITY_FUNCTION)
-      #Improvement 7 : Mix Arithmetic Mean            
-      candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION, arithmeticMean)
-      #Improvement 8 : Mix Harmonic Mean           candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION, harmonicMean)
+      #Improvement 7 : Mix Arithmetic Mean                candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION, arithmeticMean)
+      #Improvement 8 : Mix Harmonic Mean                 candidates[word] = findCandidateTranslationsMixMean(word, max(top_list), SIMILARITY_FUNCTION, harmonicMean)
       #Improvement 9 : Mix Chiao REFAIRE      candidates[word] = findCandidateTranslationsMixChiao(word, max(top_list), SIMILARITY_FUNCTION)
       #Improvement 10 : Mix Chiao separate : each 2-space rank is computed separately and we re-rank      candidates[word] = findCandidateTranslationsMixChiaoSeparate(word, max(top_list), SIMILARITY_FUNCTION)
       
@@ -1207,7 +1207,7 @@ if __name__ == "__main__":
   #def ftransferTarget(word) : return transfer(word, targetNetwork[word], bilingualDico_inv, Counter(map(Token.__str__, sourceCorpus)))
   #makeTest([40], testset, transferedNetwork, targetNetwork, ftransferTarget)
   #makeTest([30, 20, 10, 5, 1], testset, transferedNetwork, targetNetwork, ftransferTarget) # 
-  performTest([90, 80, 70, 60, 50, 40, 30, 20, 10, 5, 1], testset) # 
+  performTest([30, 20, 10, 5, 1], testset) # 90, 80, 70, 60, 50, 40, 
   elapsed_time = time.time() - start_time
   print str(elapsed_time)
 

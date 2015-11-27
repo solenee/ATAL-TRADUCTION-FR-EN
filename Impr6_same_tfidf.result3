@@ -1,0 +1,104 @@
+>LOADING COMPARABLE CORPORA...
+>LOADING BILINGUAL DICTIONARY...
+>COMPUTING AND NORMALIZING (TFIDF) CONTEXT VECTORS...
+0.899107933044
+>TRANSFERRING CONTEXT VECTORS...
+Source space :13615, Pivot words : 0
+Target space :20229, Pivot words : 
+Source space :13615, Pivot words : 
+Target space :20229, Pivot words : 0
+>TESTING...
+capécitabine not in source corpus
+asthénie not in source corpus
+celecoxib not in source corpus
+tamoxiféne not in source corpus
+arthralgie not in source corpus
+===========
+TOP 90
+tp = 58 /98
+Precision = 0.563106796117
+Real precision = 0.591836734694
+MAP (classic) = 0.24505926068
+MAP (recall) = 0.24222479356
+MAP (best) = 0.25673865002
+===========
+TOP 80
+tp = 55 /98
+Precision = 0.533980582524
+Real precision = 0.561224489796
+MAP (classic) = 0.247293616559
+MAP (recall) = 0.244430226305
+MAP (best) = 0.259015748273
+===========
+TOP 70
+tp = 53 /98
+Precision = 0.514563106796
+Real precision = 0.540816326531
+MAP (classic) = 0.247042468692
+MAP (recall) = 0.244178783304
+MAP (best) = 0.258765036553
+===========
+TOP 60
+tp = 53 /98
+Precision = 0.514563106796
+Real precision = 0.540816326531
+MAP (classic) = 0.247039905959
+MAP (recall) = 0.244176217559
+MAP (best) = 0.25876247827
+===========
+TOP 50
+tp = 52 /98
+Precision = 0.504854368932
+Real precision = 0.530612244898
+MAP (classic) = 0.246860860832
+MAP (recall) = 0.243997172402
+MAP (best) = 0.258583433189
+===========
+TOP 40
+tp = 51 /98
+Precision = 0.495145631068
+Real precision = 0.520408163265
+MAP (classic) = 0.246627122895
+MAP (recall) = 0.243763434464
+MAP (best) = 0.258349695252
+===========
+TOP 30
+tp = 49 /98
+Precision = 0.47572815534
+Real precision = 0.5
+MAP (classic) = 0.246359652023
+MAP (recall) = 0.243495963592
+MAP (best) = 0.257817138589
+===========
+TOP 20
+tp = 46 /98
+Precision = 0.446601941748
+Real precision = 0.469387755102
+MAP (classic) = 0.245041281847
+MAP (recall) = 0.242177593416
+MAP (best) = 0.256496063456
+===========
+TOP 10
+tp = 43 /98
+Precision = 0.417475728155
+Real precision = 0.438775510204
+MAP (classic) = 0.242778199021
+MAP (recall) = 0.23991451059
+MAP (best) = 0.254232953028
+===========
+TOP 5
+tp = 35 /98
+Precision = 0.339805825243
+Real precision = 0.357142857143
+MAP (classic) = 0.230538553051
+MAP (recall) = 0.230509331741
+MAP (best) = 0.242560200201
+===========
+TOP 1
+tp = 18 /98
+Precision = 0.174757281553
+Real precision = 0.183673469388
+MAP (classic) = 0.17582182197
+MAP (recall) = 0.175821523793
+MAP (best) = 0.186148573471
+181.459028006
